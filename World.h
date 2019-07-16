@@ -88,7 +88,7 @@ public:
     uintptr_t GetCameraOnEntity();
     uintptr_t GetWorld();
     offsets offsets;
-    D3DXVECTOR3* GetEntityPosition(uintptr_t entity);
+    D3DXVECTOR3 GetEntityPosition(uintptr_t entity);
 
 private:
 

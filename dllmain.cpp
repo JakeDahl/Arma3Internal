@@ -98,7 +98,7 @@ HRESULT DetourD3D11Present(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Fl
 {
     if (init)
     {
-        //TerminateThread(hThread, 0);
+        TerminateThread(hThread, 0);
 
         swapChain->GetDevice(__uuidof(pDevice), (void**)& pDevice);
         pDevice->GetImmediateContext(&pContext);

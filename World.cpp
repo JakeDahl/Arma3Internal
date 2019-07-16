@@ -8,7 +8,7 @@ TransData* World::GetTransData()
     uintptr_t camera = *(uintptr_t*)(world + this->offsets.camera);
     if (!camera) return NULL;
 
-    TransData* trans = (TransData*)(camera + 0x8);
+    TransData* trans = (TransData*)(camera);
     if(!trans) return NULL;
 
     return trans;
@@ -36,12 +36,12 @@ uintptr_t World::GetWorld()
     return world;
 }
 
-D3DXVECTOR3* World::GetEntityPosition(uintptr_t entity)
+D3DXVECTOR3 World::GetEntityPosition(uintptr_t entity)
 {
-    uintptr_t manVisualState = *(uintptr_t*)(entity + this->offsets.feetPos);
-    if (!manVisualState) return NULL;
+    uintptr_t manVisualState = *(uintptr_t*)(entity + this->offsets.manVisualState);
+    if (!manVisualState) D3DXVECTOR3(0,0,0);
 
     D3DXVECTOR3 position = *(D3DXVECTOR3*)(manVisualState + 0x2C);
 
-    return &position;
+    return position;
 }

@@ -74,14 +74,14 @@ void Cheat(std::unique_ptr<Renderer>& renderer)
             uintptr_t entity = *(uintptr_t*)(entityTable + (i * 0x8));
             if(!entity) continue;
             
-            D3DXVECTOR3* position = world.GetEntityPosition(entity);
+            D3DXVECTOR3 position = world.GetEntityPosition(entity);
 
             if(!position) continue;
 
-            D3DXVECTOR3 w2sf = WorldToScreen(*position, *trans);
+            D3DXVECTOR3 w2sf = WorldToScreen(position, *trans);
 
             if(w2sf.z <= 0.19f) continue;
-            renderer->drawText(Vec2(w2sf.x, w2sf.y), L"Object", color, FW1_LEFT, 8.0f, L"Verdana");
+            renderer->drawText(Vec2(w2sf.x, w2sf.y), L"Object", color, FW1_LEFT, 10.0f, L"Verdana");
         }
     }
 }
