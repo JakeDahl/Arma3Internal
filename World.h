@@ -9,11 +9,35 @@
 
 void Cheat(std::unique_ptr<Renderer>& renderer);
 
+typedef enum _COORD_TYPE
+{
+    COORD_FEET = 0,
+    COORD_HEAD = 1
+} COORD_TYPE;
+
+typedef enum _ENTITY_TYPE
+{
+    ENTITY_PLAYER = 0,
+    ENTITY_AI = 1,
+    ENTITY_VEHICLE = 2,
+    ENTITY_BAD_TYPE = 3
+} ENTITY_TYPE;
+
+class Entity
+{
+    public:
+        std::wstring info;
+        ENTITY_TYPE type;
+        int sideId = -1;
+        int playerId = 0;
+};
+
 class offsets
 {
 public:
     uintptr_t base;
     uintptr_t gWorld = 0x2571DB8;
+    
     uint32_t engine = 0x480;
 
     uint32_t InGameUI = 0x488; //World->
@@ -26,12 +50,23 @@ public:
     uint32_t CameraOn = 0x26D8; //World->this + 0x8 = entity
     uint32_t LocalPlayer = 0x26F8; //World->this + 0x8 = entity
     uint32_t Entity = 0x8;
+    uint32_t sideid = 0x340;
+    uint32_t playerId = 0xB94;
 
     uint32_t manVisualState = 0xD0;
     uint32_t renderVisualState = 0x190;
 
     uint32_t feetPos = 0x2C;//vec3
     uint32_t headPos = 0x168;//vec3
+    
+
+    uint32_t model = 0x150; //entity+ this
+    uint32_t modelName = 0x80; //name = 0x10, size = 0x8
+
+    uintptr_t gNetworkManager = 0x252FD98;
+    uint32_t networkClient = 0x48;
+    uint32_t scoreboard = 0x38; //ScoreboardSz = NetworkClient + scoreboard + 0x8 (int)
+    uint32_t usernamePtr = 0x170; //
 };
 
 
@@ -88,7 +123,8 @@ public:
     uintptr_t GetCameraOnEntity();
     uintptr_t GetWorld();
     offsets offsets;
-    D3DXVECTOR3 GetEntityPosition(uintptr_t entity);
+    Entity SetupEntity(uintptr_t entity);
+    D3DXVECTOR3 GetEntityPosition(uintptr_t entity, COORD_TYPE type);
 
 private:
 
