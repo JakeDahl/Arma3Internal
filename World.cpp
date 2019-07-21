@@ -69,6 +69,69 @@ D3DXVECTOR3 World::GetEntityPosition(uintptr_t entity, COORD_TYPE type, bool loc
 }
 
 
+extern uintptr_t centerEntity;
+void World::UnlockVehicle()
+{
+    uintptr_t cameraOn = this->GetCameraOnEntity();
+    uintptr_t world = this->GetWorld();
+
+    uintptr_t playerOn = *(uintptr_t*)(world + this->offsets.LocalPlayer); if (!playerOn) return;
+    uintptr_t localEnt = *(uintptr_t*)(playerOn + 0x8); if(!localEnt) return;
+
+    if (localEnt != cameraOn)
+    {
+
+        uintptr_t inGameUI = *(uintptr_t*)(world + this->offsets.InGameUI); if (!inGameUI) return;
+        uintptr_t cursorTarget = *(uintptr_t*)(inGameUI + this->offsets.CursorTarget); if (!cursorTarget) return;
+        uintptr_t cursorEntity = *(uintptr_t*)(cursorTarget + 0x8); if (!cursorEntity) return; //0x8 is unit info link dereference.
+
+        int currLockState = *(int*)(cursorEntity + this->offsets.vehicleLockState);
+
+        if (currLockState != 2)
+        {
+            *(int*)(cursorEntity + this->offsets.vehicleLockState) = 2;
+        }
+        else
+        {
+            *(int*)(cursorEntity + this->offsets.vehicleLockState) = 0;
+        }
+    }
+
+    else
+    {
+        int currLockState = *(int*)(cameraOn + this->offsets.vehicleLockState);
+
+        if (currLockState != 2)
+        {
+            *(int*)(cameraOn + this->offsets.vehicleLockState) = 2;
+        }
+        else
+        {
+            *(int*)(cameraOn + this->offsets.vehicleLockState) = 0;
+        }
+    }
+}
+
+
+void World::RepairCurrentObject()
+{
+    uintptr_t cameraOn = this->GetCameraOnEntity();
+    if(!cameraOn) return;
+
+    uintptr_t partsTable = *(uintptr_t*)(cameraOn + this->offsets.parts);
+    
+    if (partsTable)
+    {
+        int partsTableSz = *(int*)(cameraOn + this->offsets.parts + 0x8); //TArray, size follows + 0x8 from table pointer.
+
+        for (size_t i = 0; i < partsTableSz; i++)
+        {
+            *(float*)(partsTable + (i * 0x4)) = 0.f; //0 = fully repaired.
+        }
+    }
+}
+
+
 char* World::GetPlayerName(int playerId)
 {
     uintptr_t networkManager = *(uintptr_t*)(this->offsets.base + this->offsets.gNetworkManager);

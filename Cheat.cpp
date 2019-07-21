@@ -3,6 +3,7 @@
 
 int renderDistance = 1000;
 bool showAi = false;
+bool showVehicles = false;
 XMVECTORF32 black;
 
 float Dot(D3DXVECTOR3 left, D3DXVECTOR3 right)
@@ -47,6 +48,7 @@ World world;
 
 XMVECTORF32 color;
 bool once = true;
+uintptr_t centerEntity;
 
 void DrawPlayer(std::unique_ptr<Renderer>& renderer, Entity ent, D3DXVECTOR3 w2sf, D3DXVECTOR3 w2sh, float rapport, int distance)
 {
@@ -92,7 +94,8 @@ void DrawPlayer(std::unique_ptr<Renderer>& renderer, Entity ent, D3DXVECTOR3 w2s
 
 }
 
-
+D3DXVECTOR3 centerScreen;
+int closestToCenter;
 void HandleEntity(uintptr_t entity, uintptr_t localPlayer, std::unique_ptr<Renderer>& renderer, TransData* trans)
 {
     if (!entity || entity == localPlayer) return;
@@ -101,8 +104,7 @@ void HandleEntity(uintptr_t entity, uintptr_t localPlayer, std::unique_ptr<Rende
     bool isDead = *(bool*)(entity + world.offsets.isDead);
     if(isDead) return;
 
-    if (ent.type == ENTITY_BAD_TYPE || (showAi == false && ent.type == ENTITY_AI)) return;
-
+    if (ent.type == ENTITY_BAD_TYPE || (showAi == false && ent.type == ENTITY_AI) || (showVehicles == false && ent.type == ENTITY_VEHICLE)) return;
 
     D3DXVECTOR3 feetposition = world.GetEntityPosition(entity, COORD_FEET, false);
     D3DXVECTOR3 localPos = world.GetEntityPosition(localPlayer, COORD_FEET, true);
@@ -113,6 +115,14 @@ void HandleEntity(uintptr_t entity, uintptr_t localPlayer, std::unique_ptr<Rende
 
     D3DXVECTOR3 w2sf = WorldToScreen(feetposition, *trans);
     if (w2sf.z <= 0.19f) return;
+
+    int distFromCenter = Distance(w2sf, centerScreen);
+
+    if (distFromCenter < closestToCenter)
+    {
+        closestToCenter = distFromCenter;
+        centerEntity = entity;
+    }
 
     D3DXVECTOR3 headpos = world.GetEntityPosition(entity, COORD_HEAD, false);
     D3DXVECTOR3 w2sh = WorldToScreen(headpos, *trans);
@@ -151,8 +161,8 @@ void HandleEntity(uintptr_t entity, uintptr_t localPlayer, std::unique_ptr<Rende
         color.f[3] = 1.0f;
 
         all << ent.info << std::endl << dist;
-        renderer->drawText(Vec2(w2sf.x-1, w2sf.y-1), all.str().c_str(), black, FW1_LEFT, 10.0f, L"Verdana");
-        renderer->drawText(Vec2(w2sf.x, w2sf.y), all.str().c_str(), color, FW1_LEFT, 10.0f, L"Verdana");
+        renderer->drawText(Vec2(w2sf.x-1, w2sf.y-1), all.str().c_str(), black, FW1_LEFT, 8.0f, L"Verdana");
+        renderer->drawText(Vec2(w2sf.x, w2sf.y), all.str().c_str(), color, FW1_LEFT, 8.0f, L"Verdana");
         
 
         break;
@@ -218,7 +228,7 @@ void ESP(std::unique_ptr<Renderer>& renderer, uintptr_t worldptr, uintptr_t loca
 
 D3DXVECTOR3 origCoords;
 bool coordsUnset = true;
-float clipSpeed = 0.2f;
+float clipSpeed = 1.0f;
 
 void NoClip(uintptr_t localEntity, TransData* trans)
 {
@@ -248,7 +258,7 @@ void NoClip(uintptr_t localEntity, TransData* trans)
         {
             if (GetAsyncKeyState(VK_SHIFT))
             {
-                clipSpeed = 1.0f;
+                clipSpeed = 5.0f;
             }
 
             if (GetAsyncKeyState('W'))
@@ -296,7 +306,7 @@ void NoClip(uintptr_t localEntity, TransData* trans)
                 origCoords = world.GetEntityPosition(localEntity, COORD_FEET, true);
             }
 
-            clipSpeed = 0.2f;
+            clipSpeed = 1.0f;
         }
         else
         {
@@ -309,7 +319,7 @@ void NoClip(uintptr_t localEntity, TransData* trans)
 
 void NoClip(uintptr_t localEntity, TransData* trans);
 bool noClip = false;
-
+bool repair = false;
 
 void HandleHotkey()
 {
@@ -320,12 +330,12 @@ void HandleHotkey()
         coordsUnset = true;
     }
 
-    if (GetAsyncKeyState(VK_NUMPAD9) & 0x8000)
+    if (GetAsyncKeyState(VK_NUMPAD9) & 1)
     {
         renderDistance += 100;
     }
 
-    if (GetAsyncKeyState(VK_NUMPAD6) & 0x8000)
+    if (GetAsyncKeyState(VK_NUMPAD6) & 1)
     {
         renderDistance -= 100;
     }
@@ -335,7 +345,38 @@ void HandleHotkey()
         showAi = !showAi;
     }
 
+    if (GetAsyncKeyState(VK_F2) & 1)
+    {
+        showVehicles = !showVehicles;
+    }
+
+    if (GetAsyncKeyState(VK_HOME) & 1)
+    {
+        world.UnlockVehicle();
+    }
+
+    if (GetAsyncKeyState(VK_DELETE) & 1)
+    {
+        repair = !repair;
+    }
+
+    //if (GetAsyncKeyState(VK_NUMPAD5) & 0x8000)
+    //{
+    //    typedef void(__fastcall * tAskForAddImpulse)(uintptr_t NetworkManager, uintptr_t entity, D3DXVECTOR3 * impulseVector, D3DXVECTOR3 * torque); //First 2 arguments are pointers
+    //    tAskForAddImpulse AskForAddImpulse = (tAskForAddImpulse)(world.offsets.base + 0x939980);
+
+    //    D3DXVECTOR3 IMP;
+    //    IMP.x = 0; IMP.y = 10000.0f; IMP.z = 0;
+
+    //    D3DXVECTOR3 TOR;
+    //    TOR.x = 0; TOR.y = 0.; TOR.z = 0;
+    //    uintptr_t networkManager = *(uintptr_t*)(world.offsets.base + world.offsets.gNetworkManager);
+
+    //    AskForAddImpulse(networkManager, world.GetCameraOnEntity(), &IMP, &TOR);
+    //}
 }
+
+
 
 void Cheat(std::unique_ptr<Renderer>& renderer)
 {
@@ -351,8 +392,13 @@ void Cheat(std::unique_ptr<Renderer>& renderer)
         black.f[2] = 0.f;
         black.f[3] = 1.f;
         once = false;
+
+        centerScreen.x = 1920/2;
+        centerScreen.y = 1080/2;
+        centerScreen.z = 0;
     }
 
+    closestToCenter = 999999;
     HandleHotkey();
 
     uintptr_t worldptr = world.GetWorld();
@@ -364,6 +410,11 @@ void Cheat(std::unique_ptr<Renderer>& renderer)
     if (noClip)
     {
         NoClip(localPlayer, trans);
+    }
+
+    if (repair)
+    {
+        world.RepairCurrentObject();
     }
 
     ESP(renderer, worldptr, localPlayer, trans);

@@ -50,13 +50,16 @@ public:
     uint32_t farfarEntityTable = 0x1868;
     uint32_t farfarfarEntityTable = 0x1930;
 
+    uint32_t LocalPlayer = 0x26C8; //World->this + 0x8 = entity
     uint32_t CameraOn = 0x26D8; //World->this + 0x8 = entity
-    uint32_t LocalPlayer = 0x26F8; //World->this + 0x8 = entity
+    
     uint32_t Entity = 0x8;
     uint32_t sideid = 0x340;
     uint32_t playerId = 0xB94;
     uint32_t landContact = 0x345; //bool
     uint32_t isDead = 0x504; //bool
+    uint32_t vehicleLockState = 0xDBC; //1 == unlocked, 2 == locked.
+    uint32_t parts = 0x270;
 
     uint32_t manVisualState = 0xD0;
     uint32_t renderVisualState = 0x190;
@@ -132,6 +135,8 @@ public:
     offsets offsets;
     Entity SetupEntity(uintptr_t entity);
     D3DXVECTOR3 GetEntityPosition(uintptr_t entity, COORD_TYPE type, bool localPlayer);
+    void UnlockVehicle();
+    void RepairCurrentObject();
 
 private:
 
