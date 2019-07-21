@@ -1,6 +1,9 @@
 #include "World.h"
 #include <sstream>
 
+int renderDistance = 1000;
+bool showAi = false;
+XMVECTORF32 black;
 
 float Dot(D3DXVECTOR3 left, D3DXVECTOR3 right)
 {
@@ -45,9 +48,8 @@ World world;
 XMVECTORF32 color;
 bool once = true;
 
-void DrawPlayer(std::unique_ptr<Renderer>& renderer, Entity ent, D3DXVECTOR3 w2sf, D3DXVECTOR3 w2sh, float rapport)
+void DrawPlayer(std::unique_ptr<Renderer>& renderer, Entity ent, D3DXVECTOR3 w2sf, D3DXVECTOR3 w2sh, float rapport, int distance)
 {
-    XMVECTORF32 playerColor;
 
     switch (ent.sideId)
     {
@@ -81,44 +83,90 @@ void DrawPlayer(std::unique_ptr<Renderer>& renderer, Entity ent, D3DXVECTOR3 w2s
             
     }
 
-    renderer->drawRect(Vec4(w2sh.x - (rapport / 4), w2sh.y, rapport / 2, rapport), 1, playerColor);
-    renderer->drawText(Vec2(w2sf.x, w2sf.y), ent.info, playerColor, FW1_LEFT, 10.0f, L"Verdana");
+    std::wstringstream all;
+
+    all << ent.info << std::endl << distance;
+    renderer->drawRect(Vec4(w2sh.x - (rapport / 4), w2sh.y, rapport / 2, rapport), 1, color);
+    renderer->drawText(Vec2(w2sf.x - 1, w2sf.y - 1), all.str().c_str(), black, FW1_LEFT, 10.0f, L"Verdana");
+    renderer->drawText(Vec2(w2sf.x, w2sf.y), all.str().c_str(), color, FW1_LEFT, 10.0f, L"Verdana");
+
 }
 
-void NoClip(uintptr_t localEntity, TransData* trans);
-bool noClip = false;
 
-void HandleHotkey()
+void HandleEntity(uintptr_t entity, uintptr_t localPlayer, std::unique_ptr<Renderer>& renderer, TransData* trans)
 {
-    if (GetAsyncKeyState(VK_END) & 1)
-    {
-        noClip = !noClip;
-    }
-}
+    if (!entity || entity == localPlayer) return;
 
-void Cheat(std::unique_ptr<Renderer>& renderer)
-{
-    if (once)
+    Entity ent = world.SetupEntity(entity);
+    bool isDead = *(bool*)(entity + world.offsets.isDead);
+    if(isDead) return;
+
+    if (ent.type == ENTITY_BAD_TYPE || (showAi == false && ent.type == ENTITY_AI)) return;
+
+
+    D3DXVECTOR3 feetposition = world.GetEntityPosition(entity, COORD_FEET, false);
+    D3DXVECTOR3 localPos = world.GetEntityPosition(localPlayer, COORD_FEET, true);
+
+    int dist = Distance(feetposition, localPos);
+
+    if(dist > renderDistance) return;
+
+    D3DXVECTOR3 w2sf = WorldToScreen(feetposition, *trans);
+    if (w2sf.z <= 0.19f) return;
+
+    D3DXVECTOR3 headpos = world.GetEntityPosition(entity, COORD_HEAD, false);
+    D3DXVECTOR3 w2sh = WorldToScreen(headpos, *trans);
+
+    float rapport = w2sf.y - w2sh.y;
+
+    std::wstringstream all;
+
+    switch (ent.type)
     {
-        color.f[0] = 1.0f;
-        color.f[1] = 0.f;
+    case ENTITY_BAD_TYPE:
+        break;
+
+    case ENTITY_PLAYER:
+        DrawPlayer(renderer, ent, w2sf, w2sh, rapport, dist);
+        break;
+
+    case ENTITY_AI:
+        color.f[0] = 1.f;
+        color.f[1] = 1.f;
         color.f[2] = 0.f;
         color.f[3] = 1.0f;
-        once = false;
+
+        all << dist;
+        renderer->drawRect(Vec4(w2sh.x - (rapport / 4), w2sh.y, rapport / 2, rapport), 1, color);
+        renderer->drawText(Vec2(w2sf.x - 1, w2sf.y - 1), all.str().c_str(), black, FW1_LEFT, 10.0f, L"Verdana");
+        renderer->drawText(Vec2(w2sf.x, w2sf.y), all.str().c_str(), color, FW1_LEFT, 10.0f, L"Verdana");
+        
+
+        break;
+
+    case ENTITY_VEHICLE:
+        color.f[0] = .7f;
+        color.f[1] = .7f;
+        color.f[2] = .7f;
+        color.f[3] = 1.0f;
+
+        all << ent.info << std::endl << dist;
+        renderer->drawText(Vec2(w2sf.x-1, w2sf.y-1), all.str().c_str(), black, FW1_LEFT, 10.0f, L"Verdana");
+        renderer->drawText(Vec2(w2sf.x, w2sf.y), all.str().c_str(), color, FW1_LEFT, 10.0f, L"Verdana");
+        
+
+        break;
+
+    default: break;
     }
-    HandleHotkey();
 
-    uintptr_t worldptr = world.GetWorld();
-    TransData* trans = world.GetTransData();
-    uintptr_t localPlayer = world.GetCameraOnEntity();
+    return;
+}
 
-    if(!localPlayer && !worldptr) return;
 
-    if (noClip && trans)
-    {
-        NoClip(localPlayer, trans);
-    }
-
+//TO-DO: setup nested forloop to iterate over tables vs. 4 seperate iterations. :/
+void ESP(std::unique_ptr<Renderer>& renderer, uintptr_t worldptr, uintptr_t localPlayer, TransData* trans)
+{
     uintptr_t entityTable = *(uintptr_t*)(worldptr + world.offsets.nearEntityTable);
     int entityTableSize = *(int*)(worldptr + world.offsets.nearEntityTable + 0x8);
 
@@ -127,54 +175,43 @@ void Cheat(std::unique_ptr<Renderer>& renderer)
         for (size_t i = 0; i < entityTableSize; i++)
         {
             uintptr_t entity = *(uintptr_t*)(entityTable + (i * 0x8));
-            
-            if(!entity || entity == localPlayer) continue;
+            HandleEntity(entity, localPlayer, renderer, trans);
+        }
+    }
 
-            Entity ent = world.SetupEntity(entity);
+    entityTable = *(uintptr_t*)(worldptr + world.offsets.farEntityTable);
+    entityTableSize = *(int*)(worldptr + world.offsets.farEntityTable + 0x8);
 
-            if(ent.type == ENTITY_BAD_TYPE) continue;
-            
-            D3DXVECTOR3 feetposition = world.GetEntityPosition(entity, COORD_FEET);
+    if (entityTable && entityTableSize > 0)
+    {
+        for (size_t i = 0; i < entityTableSize; i++)
+        {
+            uintptr_t entity = *(uintptr_t*)(entityTable + (i * 0x8));
+            HandleEntity(entity, localPlayer, renderer, trans);
+        }
+    }
 
-            if(!feetposition) continue;
+    entityTable = *(uintptr_t*)(worldptr + world.offsets.farfarEntityTable);
+    entityTableSize = *(int*)(worldptr + world.offsets.farfarEntityTable + 0x8);
 
-            
-            D3DXVECTOR3 w2sf = WorldToScreen(feetposition, *trans);
-            if (w2sf.z <= 0.19f) continue;
+    if (entityTable && entityTableSize > 0)
+    {
+        for (size_t i = 0; i < entityTableSize; i++)
+        {
+            uintptr_t entity = *(uintptr_t*)(entityTable + (i * 0x8));
+            HandleEntity(entity, localPlayer, renderer, trans);
+        }
+    }
 
-            D3DXVECTOR3 headpos = world.GetEntityPosition(entity, COORD_HEAD);
-            D3DXVECTOR3 w2sh = WorldToScreen(headpos, *trans);
+    entityTable = *(uintptr_t*)(worldptr + world.offsets.farfarfarEntityTable);
+    entityTableSize = *(int*)(worldptr + world.offsets.farfarfarEntityTable + 0x8);
 
-            float rapport = w2sf.y - w2sh.y;
-            
-            switch (ent.type)
-            {
-                case ENTITY_BAD_TYPE:
-                    break;
-
-                case ENTITY_PLAYER:
-                    DrawPlayer(renderer, ent, w2sf, w2sh, rapport);
-                    break;
-
-                case ENTITY_AI:
-                    color.f[0] = 1.0f;
-                    color.f[1] = 1.f;
-                    color.f[2] = 0.f;
-                    color.f[3] = 1.0f;
-                    renderer->drawRect(Vec4(w2sh.x - (rapport / 4), w2sh.y, rapport / 2, rapport), 1, color);
-                    //renderer->drawText(Vec2(w2sf.x, w2sf.y), ent.info, color, FW1_LEFT, 10.0f, L"Verdana");
-                    break;
-
-                case ENTITY_VEHICLE:
-                    color.f[0] = .5f;
-                    color.f[1] = .5f;
-                    color.f[2] = .5f;
-                    color.f[3] = 1.0f;
-                    renderer->drawText(Vec2(w2sf.x, w2sf.y), ent.info, color, FW1_LEFT, 10.0f, L"Verdana");
-                    break;
-
-                  default: break;
-            }
+    if (entityTable && entityTableSize > 0)
+    {
+        for (size_t i = 0; i < entityTableSize; i++)
+        {
+            uintptr_t entity = *(uintptr_t*)(entityTable + (i * 0x8));
+            HandleEntity(entity, localPlayer, renderer, trans);
         }
     }
 }
@@ -185,86 +222,160 @@ float clipSpeed = 0.2f;
 
 void NoClip(uintptr_t localEntity, TransData* trans)
 {
-    D3DXVECTOR3 coords = world.GetEntityPosition(localEntity, COORD_FEET);
-
-    uintptr_t manVisualState = *(uintptr_t*)(localEntity + world.offsets.manVisualState);
-    if (!manVisualState) return;
-
-    D3DXVECTOR3 zero;
-    zero.x = 0;
-    zero.y = 0;
-    zero.z = 0;
-    *(D3DXVECTOR3*)(manVisualState + 0x54) = zero;
-    *(D3DXVECTOR3*)(manVisualState + 0x5C) = zero;
-
-
-    if (coordsUnset)
+    if (localEntity && trans)
     {
-        origCoords = world.GetEntityPosition(localEntity, COORD_FEET);
-        coordsUnset = false;
+        D3DXVECTOR3 coords = world.GetEntityPosition(localEntity, COORD_FEET, true);
+
+        uintptr_t manVisualState = *(uintptr_t*)(localEntity + world.offsets.manVisualState);
+        if (!manVisualState) return;
+
+        D3DXVECTOR3 zero;
+        zero.x = 0;
+        zero.y = 0;
+        zero.z = 0;
+
+        *(D3DXVECTOR3*)(manVisualState + 0x54) = zero; //Velocity
+        *(D3DXVECTOR3*)(manVisualState + 0x5C) = zero; //Velocity
+        *(bool*)(localEntity + world.offsets.landContact) = (bool)1;
+
+        if (coordsUnset)
+        {
+            origCoords = world.GetEntityPosition(localEntity, COORD_FEET, true);
+            coordsUnset = false;
+        }
+
+        if (GetAsyncKeyState('W') || GetAsyncKeyState('S') || GetAsyncKeyState('A') || GetAsyncKeyState('D') || GetAsyncKeyState(VK_SPACE) || GetAsyncKeyState(VK_CONTROL))
+        {
+            if (GetAsyncKeyState(VK_SHIFT))
+            {
+                clipSpeed = 1.0f;
+            }
+
+            if (GetAsyncKeyState('W'))
+            {
+                *(float*)(manVisualState + 0x2C) = (coords.x - ((clipSpeed)* sinf(trans->View_forward.x)));
+                *(float*)(manVisualState + 0x34) = (coords.z + ((clipSpeed)* sinf(trans->View_forward.z)));
+                *(float*)(manVisualState + 0x30) = (coords.y + ((clipSpeed)* sinf(trans->View_up.z)));
+                origCoords = world.GetEntityPosition(localEntity, COORD_FEET, true);
+            }
+
+            if (GetAsyncKeyState('S'))
+            {
+                *(float*)(manVisualState + 0x2C) = (coords.x + ((clipSpeed)* sinf(trans->View_forward.x)));
+                *(float*)(manVisualState + 0x34) = (coords.z - ((clipSpeed)* sinf(trans->View_forward.z)));
+                *(float*)(manVisualState + 0x30) = (coords.y - ((clipSpeed)* sinf(trans->View_up.z)));
+                origCoords = world.GetEntityPosition(localEntity, COORD_FEET, true);
+            }
+
+            if (GetAsyncKeyState('A'))
+            {
+                D3DXVECTOR3 trucking = Cross(trans->View_up, trans->View_forward);
+                *(float*)(manVisualState + 0x2C) = (coords.x - ((clipSpeed)* trucking.x));
+                *(float*)(manVisualState + 0x34) = (coords.z + ((clipSpeed)* trucking.z));
+                origCoords = world.GetEntityPosition(localEntity, COORD_FEET, true);
+            }
+
+            if (GetAsyncKeyState('D'))
+            {
+                D3DXVECTOR3 trucking = Cross(trans->View_up, trans->View_forward);
+                *(float*)(manVisualState + 0x2C) = (coords.x + ((clipSpeed)* trucking.x));
+                *(float*)(manVisualState + 0x34) = (coords.z - ((clipSpeed)* trucking.z));
+                origCoords = world.GetEntityPosition(localEntity, COORD_FEET, true);
+            }
+
+
+            if (GetAsyncKeyState(VK_SPACE))
+            {
+                *(float*)(manVisualState + 0x30) = coords.y + clipSpeed;
+                origCoords = world.GetEntityPosition(localEntity, COORD_FEET, true);
+            }
+
+            if (GetAsyncKeyState(VK_CONTROL))
+            {
+                *(float*)(manVisualState + 0x30) = coords.y - clipSpeed;
+                origCoords = world.GetEntityPosition(localEntity, COORD_FEET, true);
+            }
+
+            clipSpeed = 0.2f;
+        }
+        else
+        {
+            *(D3DXVECTOR3*)(manVisualState + 0x2C) = origCoords;
+        }
+    }
+}
+
+
+
+void NoClip(uintptr_t localEntity, TransData* trans);
+bool noClip = false;
+
+
+void HandleHotkey()
+{
+
+    if (GetAsyncKeyState(VK_END) & 1)
+    {
+        noClip = !noClip;
+        coordsUnset = true;
     }
 
-    //driver.wpm(zero, visualState + 0x54); VELOCITY
-   // driver.wpm(zero, visualState + 0x5C); VELOCITY
-   // driver.wpm((bool)1, currentObj + off.landContact); LAND CONTACT
-
-    if (GetAsyncKeyState('W') & 0x8000 || GetAsyncKeyState('S') || GetAsyncKeyState('A') || GetAsyncKeyState('D') || GetAsyncKeyState(VK_SPACE) || GetAsyncKeyState(VK_CONTROL))
+    if (GetAsyncKeyState(VK_NUMPAD9) & 0x8000)
     {
-        if (GetAsyncKeyState(VK_SHIFT))
-        {
-            clipSpeed = 1.0f;
-        }
-
-      
-
-        if (GetAsyncKeyState('W') & 0x8000)
-        {
-            *(float*)(manVisualState + 0x2C) = (coords.x - ((clipSpeed) * sinf(trans->View_forward.x))); //driver.rpm<float>(visualState + 0x2C) - ((clipSpeed)* sinf(trans->View_forward.x))
-            *(float*)(manVisualState + 0x34) = (coords.z + ((clipSpeed)* sinf(trans->View_forward.z)));
-            *(float*)(manVisualState + 0x30) = (coords.y + ((clipSpeed)* sinf(trans->View_up.z)));
-            origCoords = world.GetEntityPosition(localEntity, COORD_FEET);
-        }
-
-      /*  if (GetAsyncKeyState('S'))
-        {
-            driver.wpm(driver.rpm<float>(visualState + 0x2C) + ((clipSpeed)* sinf(transform.View_forward.x)), visualState + 0x2C);
-            driver.wpm(driver.rpm<float>(visualState + 0x34) - ((clipSpeed)* sinf(transform.View_forward.z)), visualState + 0x34);
-            driver.wpm(driver.rpm<float>(visualState + 0x30) - ((clipSpeed)* transform.View_up.z), visualState + 0x30);
-            origCoords = driver.rpm<Vec3>(visualState + 0x2C);
-        }
-
-        if (GetAsyncKeyState('A'))
-        {
-            Vec3 trucking = Utils::Cross(transform.View_up, transform.View_forward);
-            driver.wpm(driver.rpm<float>(visualState + 0x2C) - ((clipSpeed)* trucking.x), visualState + 0x2C);
-            driver.wpm(driver.rpm<float>(visualState + 0x34) + ((clipSpeed)* trucking.z), visualState + 0x34);
-            origCoords = driver.rpm<Vec3>(visualState + 0x2C);
-        }
-
-        if (GetAsyncKeyState('D'))
-        {
-            Vec3 trucking = Utils::Cross(transform.View_up, transform.View_forward);
-            driver.wpm(driver.rpm<float>(visualState + 0x2C) + ((clipSpeed)* trucking.x), visualState + 0x2C);
-            driver.wpm(driver.rpm<float>(visualState + 0x34) - ((clipSpeed)* trucking.z), visualState + 0x34);
-            origCoords = driver.rpm<Vec3>(visualState + 0x2C);
-        }
-
-        if (GetAsyncKeyState(VK_SPACE))
-        {
-            driver.wpm(driver.rpm<float>(visualState + 0x30) + clipSpeed, visualState + 0x30);
-            origCoords = driver.rpm<Vec3>(visualState + 0x2C);
-        }
-
-        if (GetAsyncKeyState(VK_CONTROL))
-        {
-            driver.wpm(driver.rpm<float>(visualState + 0x30) - clipSpeed, visualState + 0x30);
-            origCoords = driver.rpm<Vec3>(visualState + 0x2C);
-        }*/
-
-        clipSpeed = 0.2f;
+        renderDistance += 100;
     }
-    else
+
+    if (GetAsyncKeyState(VK_NUMPAD6) & 0x8000)
     {
-        *(D3DXVECTOR3*)(manVisualState + 0x2C) = origCoords;
+        renderDistance -= 100;
     }
+
+    if (GetAsyncKeyState(VK_F1) & 1)
+    {
+        showAi = !showAi;
+    }
+
+}
+
+void Cheat(std::unique_ptr<Renderer>& renderer)
+{
+    if (once)
+    {
+        color.f[0] = 1.0f;
+        color.f[1] = 0.f;
+        color.f[2] = 0.f;
+        color.f[3] = 1.0f;
+
+        black.f[0] = 0.f;
+        black.f[1] = 0.f;
+        black.f[2] = 0.f;
+        black.f[3] = 1.f;
+        once = false;
+    }
+
+    HandleHotkey();
+
+    uintptr_t worldptr = world.GetWorld();
+    TransData* trans = world.GetTransData();
+    uintptr_t localPlayer = world.GetCameraOnEntity();
+
+    if(!worldptr || !localPlayer || !trans) return;
+
+    if (noClip)
+    {
+        NoClip(localPlayer, trans);
+    }
+
+    ESP(renderer, worldptr, localPlayer, trans);
+
+    color.f[0] = 1.0f;
+    color.f[1] = 0.f;
+    color.f[2] = 0.f;
+    color.f[3] = 1.0f;
+
+
+    std::wstringstream all;
+
+    all << renderDistance;
+    renderer->drawText(Vec2(15, 15), all.str().c_str(), color, FW1_LEFT, 10.0f, L"Verdana");
 }

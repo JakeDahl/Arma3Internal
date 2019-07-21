@@ -46,12 +46,17 @@ public:
     uint32_t camera = 0x800; //TransData
 
     uint32_t nearEntityTable = 0x16D8;
+    uint32_t farEntityTable = 0x17A0;
+    uint32_t farfarEntityTable = 0x1868;
+    uint32_t farfarfarEntityTable = 0x1930;
 
     uint32_t CameraOn = 0x26D8; //World->this + 0x8 = entity
     uint32_t LocalPlayer = 0x26F8; //World->this + 0x8 = entity
     uint32_t Entity = 0x8;
     uint32_t sideid = 0x340;
     uint32_t playerId = 0xB94;
+    uint32_t landContact = 0x345; //bool
+    uint32_t isDead = 0x504; //bool
 
     uint32_t manVisualState = 0xD0;
     uint32_t renderVisualState = 0x190;
@@ -67,6 +72,7 @@ public:
     uint32_t networkClient = 0x48;
     uint32_t scoreboard = 0x38; //ScoreboardSz = NetworkClient + scoreboard + 0x8 (int)
     uint32_t usernamePtr = 0x170; //
+    uint32_t scoreboardObjectSize = 0x2E0;
 };
 
 
@@ -119,12 +125,13 @@ class World
 public:
     World() { this->offsets.base = (uintptr_t)GetModuleHandle(NULL); }
 
+    char* GetPlayerName(int playerId);
     TransData* GetTransData();
     uintptr_t GetCameraOnEntity();
     uintptr_t GetWorld();
     offsets offsets;
     Entity SetupEntity(uintptr_t entity);
-    D3DXVECTOR3 GetEntityPosition(uintptr_t entity, COORD_TYPE type);
+    D3DXVECTOR3 GetEntityPosition(uintptr_t entity, COORD_TYPE type, bool localPlayer);
 
 private:
 

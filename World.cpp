@@ -14,6 +14,7 @@ TransData* World::GetTransData()
     return trans;
 }
 
+
 uintptr_t World::GetCameraOnEntity()
 {
     uintptr_t world = *(uintptr_t*)(this->offsets.base + this->offsets.gWorld);
@@ -28,6 +29,7 @@ uintptr_t World::GetCameraOnEntity()
     return entity;
 }
 
+
 uintptr_t World::GetWorld()
 {
     uintptr_t world = *(uintptr_t*)(this->offsets.base + this->offsets.gWorld);
@@ -36,9 +38,21 @@ uintptr_t World::GetWorld()
     return world;
 }
 
-D3DXVECTOR3 World::GetEntityPosition(uintptr_t entity, COORD_TYPE type)
+
+D3DXVECTOR3 World::GetEntityPosition(uintptr_t entity, COORD_TYPE type, bool localPlayer)
 {
-    uintptr_t manVisualState = *(uintptr_t*)(entity + this->offsets.manVisualState);
+    uintptr_t manVisualState;
+
+    if (localPlayer)
+    {
+        manVisualState = *(uintptr_t*)(entity + this->offsets.manVisualState);
+    }
+
+    else
+    {
+        manVisualState = *(uintptr_t*)(entity + this->offsets.renderVisualState);
+    }
+    
     if (!manVisualState) D3DXVECTOR3(0,0,0);
     D3DXVECTOR3 position;
     if (type == COORD_FEET)
@@ -53,6 +67,42 @@ D3DXVECTOR3 World::GetEntityPosition(uintptr_t entity, COORD_TYPE type)
 
     return position;
 }
+
+
+char* World::GetPlayerName(int playerId)
+{
+    uintptr_t networkManager = *(uintptr_t*)(this->offsets.base + this->offsets.gNetworkManager);
+    if(!networkManager) return NULL;
+
+    uintptr_t networkClient = *(uintptr_t*)(networkManager + this->offsets.networkClient);
+    if(!networkClient) return NULL;
+
+    uintptr_t scoreboard = *(uintptr_t*)(networkClient + this->offsets.scoreboard);
+    if (!scoreboard) return NULL;
+
+    int scoreboardSz = *(int*)(networkClient + this->offsets.scoreboard + 0x8);
+
+    for (size_t i = 0; i < scoreboardSz; i++)
+    {
+        int scoreboardPId = *(int*)(scoreboard + (i * this->offsets.scoreboardObjectSize) + 0x8);
+
+        if (scoreboardPId == playerId)
+        {
+            uintptr_t usernamePtr = *(uintptr_t*)(scoreboard + (i * this->offsets.scoreboardObjectSize) + this->offsets.usernamePtr);
+
+            if (usernamePtr)
+            {
+                char* name = (char*)(usernamePtr + 0x10);
+
+                if (name) return name;
+
+                else return NULL;
+            }
+        }
+    }
+    return NULL;
+}
+
 
 #include <locale>
 #include <codecvt>
@@ -82,18 +132,27 @@ Entity World::SetupEntity(uintptr_t entity)
         if (playerId > 1)
         {
             ent.type = ENTITY_PLAYER;
-            ent.info = L"Player";
-            ent.sideId = *(int*)(entity + 0x340);
+            char* playername = this->GetPlayerName(playerId);
+
+            if(!playername)
+            {
+                ent.type = ENTITY_BAD_TYPE;
+                return ent;
+            }
+            
+
+            std::string tmp(playername);
+            std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+            std::wstring wide = converter.from_bytes(tmp);
+            ent.info = wide;
+            ent.sideId = *(int*)(entity + this->offsets.sideid); //sideid offset
             return ent;
         }
 
         else
         {
             ent.type = ENTITY_AI;
-            std::string tmp(modelname);
-            std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-            std::wstring wide = converter.from_bytes(tmp);
-            ent.info = wide;
+            ent.info = L"";
             return ent;
         }
     }
