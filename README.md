@@ -1,6 +1,6 @@
 Arma 3 DLL, provides:
 
--Player, Vehicle, AI ESP with distance.
+-Player, Vehicle, AI ESP with distance. DirectX 11 hook to render in game.
 
 -No clip.
 
