@@ -359,21 +359,6 @@ void HandleHotkey()
     {
         repair = !repair;
     }
-
-    //if (GetAsyncKeyState(VK_NUMPAD5) & 0x8000)
-    //{
-    //    typedef void(__fastcall * tAskForAddImpulse)(uintptr_t NetworkManager, uintptr_t entity, D3DXVECTOR3 * impulseVector, D3DXVECTOR3 * torque); //First 2 arguments are pointers
-    //    tAskForAddImpulse AskForAddImpulse = (tAskForAddImpulse)(world.offsets.base + 0x939980);
-
-    //    D3DXVECTOR3 IMP;
-    //    IMP.x = 0; IMP.y = 10000.0f; IMP.z = 0;
-
-    //    D3DXVECTOR3 TOR;
-    //    TOR.x = 0; TOR.y = 0.; TOR.z = 0;
-    //    uintptr_t networkManager = *(uintptr_t*)(world.offsets.base + world.offsets.gNetworkManager);
-
-    //    AskForAddImpulse(networkManager, world.GetCameraOnEntity(), &IMP, &TOR);
-    //}
 }
 
 
